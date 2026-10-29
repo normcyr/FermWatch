@@ -12,10 +12,10 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
             - name: Set up Python
-              uses: actions/setup-python@v4
+              uses: actions/setup-python@v5
               with:
                   python-version: "3.10"
 
@@ -51,8 +51,8 @@ jobs:
                   This release contains the compiled firmware binary for the ESP8266 Wemos D1 Mini MAX7219 LED matrix display.
 
                   ### Features
-                  - Displays gravity (SG), temperature and 24 h trend on a 32×8 LED matrix
-                  - Tilt / RAPT Pill profiles, data from Home Assistant via MQTT
+                  - Displays gravity (SG or °P), temperature (°C/°F/K/°R) and 24 h trend on a 32×8 LED matrix
+                  - Up to 16 sensors (Tilt, RAPT Pill, ...), one JSON message per sensor from Home Assistant via MQTT
                   - Web-based configuration interface
                   - Fallback WiFi access point when the network is unavailable
                   - Persistent configuration (LittleFS)

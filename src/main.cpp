@@ -163,6 +163,35 @@ int collectPages(int target, String &text, bool &isName)
   return n;
 }
 
+extern const uint8_t PROGMEM _sysfont[]; // MD_MAX72XX standard font
+
+// Copy of the standard font moved down one row (bit 0 = top row): capitals use the
+// 7 bottom rows. Lowercase descenders would be clipped, but names are uppercase.
+MD_MAX72XX::fontType_t *nameFont = nullptr;
+
+void buildNameFont()
+{
+  size_t pos = 7; // header: 'F', 2, first (16 bit), last (16 bit), height
+  uint16_t count = ((pgm_read_byte(_sysfont + 4) << 8) | pgm_read_byte(_sysfont + 5)) -
+                   ((pgm_read_byte(_sysfont + 2) << 8) | pgm_read_byte(_sysfont + 3)) + 1;
+  for (uint16_t i = 0; i < count; i++)
+    pos += 1 + pgm_read_byte(_sysfont + pos);
+  uint8_t *buf = (uint8_t *)malloc(pos);
+  if (!buf)
+    return;
+  for (size_t i = 0; i < pos; i++)
+    buf[i] = pgm_read_byte(_sysfont + i);
+  size_t q = 7;
+  for (uint16_t i = 0; i < count; i++)
+  {
+    uint8_t w = buf[q++];
+    for (uint8_t c = 0; c < w; c++)
+      buf[q + c] <<= 1;
+    q += w;
+  }
+  nameFont = buf;
+}
+
 // Sensor name: use the standard full-height font when it fits the display;
 // otherwise fall back to the narrow font and scroll.
 void prepareFont(bool isName)
@@ -170,7 +199,7 @@ void prepareFont(bool isName)
   display.setCharSpacing(1);
   if (isName)
   {
-    display.setFont(nullptr);
+    display.setFont(nameFont);
     if (display.getTextColumns(textBuf) <= MAX_DEVICES * 8)
       return;
   }
@@ -218,12 +247,12 @@ void nextPage()
 
 bool splashActive = false;
 
-// Boot banner: full-height standard font, scrolled once.
+// Boot banner: standard font on the 7 bottom rows, scrolled once.
 void startSplash()
 {
   snprintf(textBuf, sizeof(textBuf), "FermWatch v%s", FIRMWARE_VERSION);
   display.displayClear();
-  display.setFont(nullptr);
+  display.setFont(nameFont);
   display.setCharSpacing(1);
   display.displayText(textBuf, PA_LEFT, cfg.scrollMs * 2, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT); // twice as slow as normal text
   splashActive = true;
@@ -585,6 +614,7 @@ void setup()
   Serial.printf("[Config] ssid='%s' mqttHost='%s'\n", cfg.ssid.c_str(), cfg.mqttHost.c_str());
 
   display.begin();
+  buildNameFont();
   display.setFont(narrowFont);
   display.setIntensity(cfg.brightness);
   display.displayClear();

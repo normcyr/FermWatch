@@ -56,7 +56,7 @@ Partial messages merge into the sensor's stored values. `unknown`/`unavailable` 
 - Text that fits 32 px is static for `pageSeconds`; otherwise it scrolls at `scrollMs` ms/pixel
 - Units (`tempUnit` C/F/K/R, `gravUnit` SG/P) only affect the display: incoming data is always °C and SG. The Plato trend is the Plato difference between SG and SG minus trend (needs `sg` in the message). `^` is the degree sign in the narrow font
 - Data older than `staleMinutes`: last value kept, prefixed with `!`
-- At boot: `FermWatch v<version>` scrolls once in the full-height standard font
+- At boot: `FermWatch v<version>` scrolls once in the standard font on the 7 bottom rows (same as the sensor name)
 - No sensor yet: `--`
 - AP mode without Wi-Fi: shows `AP 192.168.4.1`
 

@@ -299,6 +299,14 @@ To check the result, use **Settings → Devices & services → MQTT → Configur
 
 See [.github/copilot-instructions.md](.github/copilot-instructions.md) for the architecture and code guidelines.
 
+## Roadmap
+
+Planned, in this order:
+
+1. **OTA updates**: flash new firmware over Wi-Fi, protected by the Web password, so the USB cable is no longer needed.
+2. **Automated tests**: unit tests for the pure logic (SG/Plato conversion, message parsing, expiry), run in CI.
+3. **MQTT Discovery**: the device announces itself to Home Assistant, with its status and display settings as entities.
+
 ## License
 
 [MIT](LICENSE)

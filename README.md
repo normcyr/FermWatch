@@ -207,9 +207,21 @@ sensor:
 
 `change` is the difference between the newest and the oldest value of the last 24 h, so the trend is only complete after 24 h of data. Check the exact entity id that Home Assistant created.
 
-### Automation
+### Blueprint (recommended)
 
-Adapt the names and entities:
+[![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fnormcyr%2FFermWatch%2Fblob%2Fmain%2Fhomeassistant%2Fblueprints%2Ffermwatch_sensor.yaml)
+
+[homeassistant/blueprints/fermwatch_sensor.yaml](homeassistant/blueprints/fermwatch_sensor.yaml) replaces both automations below. Import it, then go to **Settings → Automations & scenes → Create automation → FermWatch** once per sensor and fill in:
+
+- the sensor name shown on the display and a unique MQTT topic (such as `fermwatch/tilt_yellow`);
+- the gravity entity, and optionally the temperature and the 24 h trend entities (select at most one each);
+- whether to remove the sensor from the display when its gravity entity stays `unavailable` or `unknown`, or stops reporting while keeping its last value (dead battery), and after how long.
+
+It publishes the same retained JSON message as the manual automation and only includes the fields you selected. It requires Home Assistant 2024.10 or later.
+
+### Manual automation
+
+If you prefer not to use the blueprint, adapt the names and entities:
 
 ```yaml
 alias: Send fermentation data to the ESP8266 display
@@ -243,7 +255,7 @@ Notes:
 
 ### Stop displaying a silent sensor
 
-If a sensor stops reporting (dead battery, out of range), Home Assistant can clear it from the display after a while by sending an empty message. This second automation does that when the gravity entity has not changed for 1 hour (note that `unavailable` also counts as a change, so adjust `for` to taste):
+If a sensor stops reporting (dead battery, out of range), Home Assistant can clear it from the display after a while by sending an empty message. The blueprint does this when enabled. Without it, this second automation does that when the gravity entity has not changed for 1 hour (note that `unavailable` also counts as a change, so adjust `for` to taste):
 
 ```yaml
 alias: Clear Tilt Yellow from the ESP8266 display

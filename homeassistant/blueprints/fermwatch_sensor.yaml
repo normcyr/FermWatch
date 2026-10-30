@@ -11,7 +11,8 @@ blueprint:
     Values must be in °C and SG, whatever the display units.
   domain: automation
   source_url: https://github.com/normcyr/FermWatch/blob/main/homeassistant/blueprints/fermwatch_sensor.yaml
-  min_version: 2024.10.0
+  homeassistant:
+    min_version: 2024.10.0
   input:
     sensor_name:
       name: Sensor name

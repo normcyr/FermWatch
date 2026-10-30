@@ -67,6 +67,7 @@ details summary{cursor:pointer;color:var(--mut)}
 <label>Broker MQTT</label><div class="row"><input type="text" id="mqttHost" placeholder="192.168.0.204"><input type="number" id="mqttPort" style="max-width:100px"></div>
 <label>MQTT user</label><input type="text" id="mqttUser" autocomplete="off">
 <label>MQTT password (empty = unchanged)</label><input type="password" id="mqttPass" autocomplete="new-password">
+<label>Web password (8-64 characters; empty = unchanged)</label><input type="password" id="webPassword" minlength="8" maxlength="64" autocomplete="new-password">
 <label>Wi-Fi network (SSID)</label><input type="text" id="ssid" autocomplete="off">
 <label>Wi-Fi password (empty = unchanged)</label><input type="password" id="password" autocomplete="new-password">
 <label>Device name</label><input type="text" id="deviceName">
@@ -132,7 +133,7 @@ function collect(){
   F.forEach(k=>o[k]=$(k).checked);
   N.forEach(k=>o[k]=parseInt($(k).value)||0);
   T.forEach(k=>o[k]=$(k).value);
-  ['mqttPass','password'].forEach(k=>o[k]=$(k).value);
+  ['mqttPass','password','webPassword'].forEach(k=>o[k]=$(k).value);
   return o;
 }
 async function poll(){
@@ -158,8 +159,8 @@ $('save').onclick=async()=>{
   try{
     const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});
     const j=await r.json();
-    $('msg').textContent=j.restart?'Saved. Restarting (Wi-Fi changed)...':(j.ok?'Configuration saved.':'Error: '+(j.error||r.status));
-    $('mqttPass').value='';$('password').value='';
+    $('msg').textContent=r.ok&&j.ok?(j.restart?'Saved. Restarting...':'Configuration saved.'):'Error: '+(j.error||r.status);
+    $('mqttPass').value='';$('password').value='';$('webPassword').value='';
   }catch(e){$('msg').textContent='Communication error'}
 };
 load();

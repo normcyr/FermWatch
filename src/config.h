@@ -6,17 +6,18 @@
 
 #define CONFIG_PATH "/config.json"
 
-struct Config
-{
+struct Config {
   String ssid;
   String password;
+  String webPassword;
   String mqttHost;
   uint16_t mqttPort = 1883;
   String mqttUser;
   String mqttPass;
   String deviceName = "fermwatch";
 
-  // One topic per sensor: <topicBase>/<anything>, the sensor name is in the JSON payload.
+  // One topic per sensor: <topicBase>/<anything>, the sensor name is in the
+  // JSON payload.
   String topicBase = "fermwatch";
 
   bool showName = true;
@@ -26,43 +27,41 @@ struct Config
 
   uint16_t pageSeconds = 5;
   uint16_t scrollMs = 35;
-  // Incoming data is always degrees Celsius and SG; units only affect the display.
-  String tempUnit = "C"; // C, F, K, R
+  // Incoming data is always degrees Celsius and SG; units only affect the
+  // display.
+  String tempUnit = "C";  // C, F, K, R
   String gravUnit = "SG"; // SG, P
   uint8_t brightness = 3;
   uint16_t staleMinutes = 30;
   uint16_t expireMinutes = 1440;
 };
 
-static void copyString(JsonObjectConst o, const char *key, String &dst)
-{
+static void copyString(JsonObjectConst o, const char *key, String &dst) {
   if (o[key].is<const char *>())
     dst = o[key].as<String>();
 }
 
-static void copySecret(JsonObjectConst o, const char *key, String &dst)
-{
+static void copySecret(JsonObjectConst o, const char *key, String &dst) {
   // An empty value means "unchanged".
   if (o[key].is<const char *>() && strlen(o[key].as<const char *>()) > 0)
     dst = o[key].as<String>();
 }
 
-static void copyBool(JsonObjectConst o, const char *key, bool &dst)
-{
+static void copyBool(JsonObjectConst o, const char *key, bool &dst) {
   if (o[key].is<bool>())
     dst = o[key].as<bool>();
 }
 
 template <typename T>
-static void copyClamped(JsonObjectConst o, const char *key, T &dst, long lo, long hi)
-{
+static void copyClamped(JsonObjectConst o, const char *key, T &dst, long lo,
+                        long hi) {
   if (o[key].is<long>())
     dst = (T)constrain(o[key].as<long>(), lo, hi);
 }
 
-// Applies a partial JSON config. Returns true if Wi-Fi or device name changed (restart required).
-static bool applyConfig(Config &c, JsonObjectConst o)
-{
+// Applies a partial JSON config. Returns true if Wi-Fi or device name changed
+// (restart required).
+static bool applyConfig(Config &c, JsonObjectConst o) {
   String oldSsid = c.ssid, oldPass = c.password, oldName = c.deviceName;
 
   copyString(o, "ssid", c.ssid);
@@ -86,7 +85,8 @@ static bool applyConfig(Config &c, JsonObjectConst o)
   copyString(o, "gravUnit", c.gravUnit);
   c.tempUnit.toUpperCase();
   c.gravUnit.toUpperCase();
-  if (c.tempUnit != "C" && c.tempUnit != "F" && c.tempUnit != "K" && c.tempUnit != "R")
+  if (c.tempUnit != "C" && c.tempUnit != "F" && c.tempUnit != "K" &&
+      c.tempUnit != "R")
     c.tempUnit = "C";
   if (c.gravUnit != "SG" && c.gravUnit != "P")
     c.gravUnit = "SG";
@@ -104,8 +104,7 @@ static bool applyConfig(Config &c, JsonObjectConst o)
   return c.ssid != oldSsid || c.password != oldPass || c.deviceName != oldName;
 }
 
-static void configToJson(const Config &c, JsonObject o, bool includeSecrets)
-{
+static void configToJson(const Config &c, JsonObject o, bool includeSecrets) {
   o["ssid"] = c.ssid;
   o["mqttHost"] = c.mqttHost;
   o["mqttPort"] = c.mqttPort;
@@ -123,26 +122,26 @@ static void configToJson(const Config &c, JsonObject o, bool includeSecrets)
   o["brightness"] = c.brightness;
   o["staleMinutes"] = c.staleMinutes;
   o["expireMinutes"] = c.expireMinutes;
-  if (includeSecrets)
-  {
+  if (includeSecrets) {
     o["password"] = c.password;
+    o["webPassword"] = c.webPassword;
     o["mqttPass"] = c.mqttPass;
   }
 }
 
-static void loadConfig(Config &c)
-{
+static void loadConfig(Config &c) {
   File f = LittleFS.open(CONFIG_PATH, "r");
   if (!f)
     return;
   JsonDocument doc;
-  if (!deserializeJson(doc, f))
+  if (!deserializeJson(doc, f)) {
     applyConfig(c, doc.as<JsonObjectConst>());
+    copySecret(doc.as<JsonObjectConst>(), "webPassword", c.webPassword);
+  }
   f.close();
 }
 
-static bool saveConfig(const Config &c)
-{
+static bool saveConfig(const Config &c) {
   File f = LittleFS.open(CONFIG_PATH, "w");
   if (!f)
     return false;

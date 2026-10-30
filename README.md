@@ -41,15 +41,17 @@ make monitor    # serial monitor, 115200 baud
 
 If the upload fails with a connection error, retry once. If the serial port is busy, stop any running monitor.
 
+GitHub Actions builds the firmware on every push and pull request.
+
 ## First setup
 
-1. Power the device. It first scrolls `FermWatch v<version>` once. With no Wi-Fi configured it opens the `FermWatch-Setup` access point and shows `AP 192.168.4.1`.
+1. Power the device. It first scrolls `FermWatch v<version>` once. Until a Web password is set, it opens the open `FermWatch-Setup` access point and shows `AP 192.168.4.1`; provision it only where nearby access is controlled.
 2. Join that network from a phone or another computer and open `http://192.168.4.1`.
-3. Under **Advanced settings**, enter the Wi-Fi SSID/password and the MQTT broker (host, port, user, password), then **Save**. The device restarts and joins your network.
-4. Open `http://<device IP>` (or `http://fermwatch.local`). The IP is printed on the serial monitor. A DHCP reservation in your router keeps it stable.
+3. Under **Advanced settings**, set a Web password (8-64 characters), enter the Wi-Fi SSID/password and MQTT broker (host, port, user, password), then **Save**. The device restarts and joins your network.
+4. Open `http://<device IP>` (or `http://fermwatch.local`). When prompted, use username `admin` and the Web password. The IP is printed on the serial monitor. A DHCP reservation in your router keeps it stable.
 5. Choose the values to display, page duration, scroll speed and brightness, then **Save**. Sensors appear automatically when their first MQTT message arrives.
 
-If the Wi-Fi is unavailable for more than 20 s, the access point comes back so the device stays reachable.
+If the Wi-Fi is unavailable for more than 20 s, the access point comes back so the device stays reachable. Existing devices without a Web password also start in setup AP mode after upgrading; set the password once to resume normal Wi-Fi operation.
 
 ## Web interface
 
@@ -59,7 +61,9 @@ If the Wi-Fi is unavailable for more than 20 s, the access point comes back so t
 - **Page duration**, **scroll speed** (used if a text is wider than the display) and **brightness**.
 - **Display preview**: cycles through the live pages of all sensors, or sample values when none was received.
 - **Advanced settings**: sensor topic base, stale/removal timeouts, MQTT broker, Wi-Fi, device name.
+- The Web interface uses HTTP Digest authentication (`admin` plus the Web password). Passwords are never returned by the API or published over MQTT.
 - Password fields left empty keep the stored value.
+- The device serves plain HTTP, not HTTPS. Use it only on a trusted local network and do not expose it directly to the Internet; HTTP traffic, including configuration values, is not encrypted.
 
 ## MQTT
 
@@ -146,13 +150,15 @@ pub -t fermwatch/fermwatch/config/set -m '{"brightness":8,"scrollMs":50}'
 | `mqttHost`, `mqttPort`, `mqttUser`, `mqttPass` | string / int | broker settings | empty / 1883 |
 | `ssid`, `password`, `deviceName` | string | changing any of these restarts the device | `fermwatch` |
 
+`webPassword` is accepted only by the HTTP configuration endpoint, is never returned, and is not configurable over MQTT. The first time it is set, the device restarts so it can leave setup AP mode.
+
 ## HTTP API
 
 | Method | Path | Description |
 | -------- | ------ | ------------- |
 | GET | `/` | configuration page |
 | GET | `/api/config` | configuration (without passwords) |
-| POST | `/api/config` | partial JSON, same keys as above; returns `{"ok":true,"restart":false}` |
+| POST | `/api/config` | partial JSON, same keys as above; accepts `webPassword` (8-64 characters) to set/change the Web password; returns `{"ok":true,"restart":false}` |
 | GET | `/api/state` | all sensors with values and age, MQTT state, IP, RSSI, firmware version |
 
 ```bash

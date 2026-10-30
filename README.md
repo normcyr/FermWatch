@@ -305,7 +305,10 @@ Planned, in this order:
 
 1. **OTA updates**: flash new firmware over Wi-Fi, protected by the Web password, so the USB cable is no longer needed.
 2. **Automated tests**: unit tests for the pure logic (SG/Plato conversion, message parsing, expiry), run in CI.
-3. **MQTT Discovery**: the device announces itself to Home Assistant, with its status and display settings as entities.
+3. **ESP32 support**: same MQTT-based behavior as the ESP8266, one PlatformIO environment per board (classic 30-pin and C3), built in CI.
+4. **MQTT Discovery**: the device announces itself to Home Assistant, with its status and display settings as entities.
+
+Bluetooth (BLE) reception is out of scope: it would bypass Home Assistant, which is the source of truth here, so it belongs in a separate project.
 
 ## License
 

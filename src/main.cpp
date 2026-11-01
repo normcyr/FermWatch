@@ -14,6 +14,7 @@
 #include <MD_MAX72xx.h>
 #include <MD_Parola.h>
 #include <PubSubClient.h>
+#include <Updater.h>
 
 #include "config.h"
 #include "font.h"
@@ -438,11 +439,66 @@ void startAccessPoint(bool apOnly = false) {
                 WiFi.softAPIP().toString().c_str());
 }
 
+// Firmware upload (OTA). Never available until a Web password is set, so the
+// open setup access point cannot be used to flash the device.
+bool updateAuthorized = false;
+String updateError;
+
+void handleUpdateUpload() {
+  HTTPUpload &upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    updateError = "";
+    updateAuthorized = !cfg.webPassword.isEmpty() &&
+                       server.authenticate("admin", cfg.webPassword.c_str());
+    if (!updateAuthorized)
+      return;
+    Serial.printf("[OTA] receiving %s\n", upload.filename.c_str());
+    uint32_t maxSize = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+    if (!Update.begin(maxSize))
+      updateError = Update.getErrorString();
+  } else if (!updateAuthorized) {
+    return;
+  } else if (upload.status == UPLOAD_FILE_WRITE && updateError.isEmpty()) {
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+      updateError = Update.getErrorString();
+  } else if (upload.status == UPLOAD_FILE_END && updateError.isEmpty()) {
+    if (!Update.end(true))
+      updateError = Update.getErrorString();
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    Update.end();
+  }
+}
+
+void handleUpdateDone() {
+  if (cfg.webPassword.isEmpty()) {
+    server.send(403, "application/json",
+                "{\"ok\":false,\"error\":\"Set a Web password first\"}");
+    return;
+  }
+  if (!updateAuthorized) {
+    server.requestAuthentication(DIGEST_AUTH, "FermWatch");
+    return;
+  }
+  updateAuthorized = false;
+  if (!updateError.isEmpty()) {
+    Serial.printf("[OTA] failed: %s\n", updateError.c_str());
+    JsonDocument doc;
+    doc["ok"] = false;
+    doc["error"] = updateError;
+    sendJson(500, doc);
+    return;
+  }
+  Serial.println("[OTA] done, restarting");
+  server.send(200, "application/json", "{\"ok\":true}");
+  restartAt = millis() + 1000;
+}
+
 void setupWiFi() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.hostname(cfg.deviceName);
   if (cfg.webPassword.isEmpty()) {
+  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
     startAccessPoint(true);
     return;
   }

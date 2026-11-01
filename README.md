@@ -162,10 +162,12 @@ pub -t fermwatch/fermwatch/config/set -m '{"brightness":8,"scrollMs":50}'
 | GET | `/api/state` | all sensors with values and age, MQTT state, IP, RSSI, firmware version |
 
 ```bash
+| POST | `/update` | multipart upload (field `firmware`) of a `firmware.bin`; flashes it and restarts. Refused until a Web password is set |
 curl http://fermwatch.local/api/state
 curl -X POST http://fermwatch.local/api/config -H 'Content-Type: application/json' -d '{"pageSeconds":8}'
 ```
 
+curl --digest -u admin:<password> -F firmware=@.pio/build/esp8266/firmware.bin http://fermwatch.local/update
 ## Home Assistant
 
 Home Assistant stays the source of truth: it already holds the data of your Tilt, RAPT Pill or any other sensor (as entities), and an automation pushes that data to the display over MQTT. The ESP8266 only displays what it receives, so nothing sensor-specific is needed in the firmware. Any Home Assistant entity can be sent, whatever integration provides it.
@@ -303,10 +305,8 @@ See [.github/copilot-instructions.md](.github/copilot-instructions.md) for the a
 
 Planned, in this order:
 
-1. **OTA updates**: flash new firmware over Wi-Fi, protected by the Web password, so the USB cable is no longer needed.
-2. **Automated tests**: unit tests for the pure logic (SG/Plato conversion, message parsing, expiry), run in CI.
-3. **ESP32 support**: same MQTT-based behavior as the ESP8266, one PlatformIO environment per board (classic 30-pin and C3), built in CI.
-4. **MQTT Discovery**: the device announces itself to Home Assistant, with its status and display settings as entities.
+1. **ESP32 support**: same MQTT-based behavior as the ESP8266, one PlatformIO environment per board (classic 30-pin and C3), built in CI.
+2. **MQTT Discovery**: the device announces itself to Home Assistant, with its status and display settings as entities.
 
 Bluetooth (BLE) reception is out of scope: it would bypass Home Assistant, which is the source of truth here, so it belongs in a separate project.
 

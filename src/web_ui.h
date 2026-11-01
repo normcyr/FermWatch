@@ -73,6 +73,13 @@ details summary{cursor:pointer;color:var(--mut)}
 <label>Device name</label><input type="text" id="deviceName">
 </details></section>
 
+<section><details><summary>Firmware update</summary>
+<label>Firmware file (firmware.bin built for the ESP8266)</label>
+<input type="file" id="fw" accept=".bin">
+<button class="sec" id="upd">Upload firmware</button>
+<div class="cap" id="updMsg">The device restarts after a successful update. Requires a Web password.</div>
+</details></section>
+
 <button id="save">Save</button>
 <p id="msg"></p>
 <p class="cap" id="foot" style="text-align:center"></p>
@@ -162,6 +169,17 @@ $('save').onclick=async()=>{
     $('msg').textContent=r.ok&&j.ok?(j.restart?'Saved. Restarting...':'Configuration saved.'):'Error: '+(j.error||r.status);
     $('mqttPass').value='';$('password').value='';$('webPassword').value='';
   }catch(e){$('msg').textContent='Communication error'}
+};
+$('upd').onclick=async()=>{
+  const f=$('fw').files[0];
+  if(!f){$('updMsg').textContent='Choose a .bin file first.';return}
+  $('updMsg').textContent='Uploading...';
+  try{
+    const fd=new FormData();fd.append('firmware',f);
+    const r=await fetch('/update',{method:'POST',body:fd});
+    const j=await r.json();
+    $('updMsg').textContent=r.ok&&j.ok?'Updated. Restarting...':'Error: '+(j.error||r.status);
+  }catch(e){$('updMsg').textContent='Communication error'}
 };
 load();
 </script></body></html>)HTML";

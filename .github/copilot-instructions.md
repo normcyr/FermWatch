@@ -51,6 +51,7 @@ Partial messages merge into the sensor's stored values. `unknown`/`unavailable` 
 - `GET /api/state`: sensors with values/age, MQTT state, IP, RSSI
 
 ## Display Behavior
+- `POST /update`: OTA firmware upload (multipart field `firmware`), Digest auth like the other routes, refused while no Web password is set (own handler, since the framework updater uses Basic auth)
 
 - For each sensor in turn, one page per enabled field (missing values are skipped), starting with the sensor name (full-height standard font if it fits in 32 px; otherwise narrow font and scrolling): `TILT YELLOW`, `SG 1.012`, `T 20.4°C`, `-0.0042/d` (trend per day)
 - Text that fits 32 px is static for `pageSeconds`; otherwise it scrolls at `scrollMs` ms/pixel

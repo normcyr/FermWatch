@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "font.h"
+#include "logic.h"
 #include "web_ui.h"
 
 #define FIRMWARE_VERSION "0.1.0"
@@ -40,19 +41,6 @@ PubSubClient mqtt(wifiClient);
 MD_Parola display(HARDWARE_TYPE, DIN_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 
 // ============ Sensors ============
-#define MAX_SENSORS 16
-#define NAME_LEN 24
-
-struct Sensor {
-  char name[NAME_LEN] = "";
-  char key[NAME_LEN] =
-      ""; // last topic segment, used to clear the sensor with an empty message
-  float sg = NAN;
-  float temp = NAN;
-  float trend = NAN;
-  unsigned long lastUpdate = 0; // millis() of the last message
-  bool used = false;
-};
 Sensor sensors[MAX_SENSORS];
 
 // ============ Etat ============
@@ -66,98 +54,36 @@ unsigned long lastMqttAttempt = 0;
 unsigned long restartAt = 0;
 
 // ============ Pages ============
-bool isStale(const Sensor &s) {
-  return (millis() - s.lastUpdate) > (unsigned long)cfg.staleMinutes * 60000UL;
-}
-
-bool isExpired(const Sensor &s) {
-  return (millis() - s.lastUpdate) > (unsigned long)cfg.expireMinutes * 60000UL;
-}
+bool isStale(const Sensor &s) { return isStale(s, millis(), cfg.staleMinutes); }
 
 void purgeExpired() {
   for (Sensor &s : sensors)
-    if (s.used && isExpired(s)) {
+    if (s.used && isExpired(s, millis(), cfg.expireMinutes)) {
       s.used = false;
       displayDirty = true;
     }
 }
 
-String formatValue(float v, int decimals, bool sign) {
-  char b[16];
-  snprintf(b, sizeof(b), sign ? "%+.*f" : "%.*f", decimals, v);
-  return String(b);
+PageOptions pageOptions() {
+  PageOptions o;
+  o.showName = cfg.showName;
+  o.showSg = cfg.showSg;
+  o.showTemp = cfg.showTemp;
+  o.showTrend = cfg.showTrend;
+  o.plato = cfg.gravUnit == "P";
+  o.tempUnit = cfg.tempUnit.length() ? cfg.tempUnit[0] : 'C';
+  o.staleMinutes = cfg.staleMinutes;
+  return o;
 }
 
-float convertTemp(float c) {
-  if (cfg.tempUnit == "F")
-    return c * 9.0f / 5.0f + 32.0f;
-  if (cfg.tempUnit == "K")
-    return c + 273.15f;
-  if (cfg.tempUnit == "R")
-    return (c + 273.15f) * 9.0f / 5.0f;
-  return c;
-}
-
-// Kelvin has no degree sign; the others use "^" (degree in the display font).
-const char *tempSuffix() {
-  if (cfg.tempUnit == "F")
-    return "^F";
-  if (cfg.tempUnit == "K")
-    return "K";
-  if (cfg.tempUnit == "R")
-    return "^R";
-  return "^C";
-}
-
-// Degrees Plato from specific gravity (standard polynomial).
-float sgToPlato(float sg) {
-  return -616.868f + 1111.14f * sg - 630.272f * sg * sg +
-         135.997f * sg * sg * sg;
-}
-
-// Walks every page (per sensor: name, SG, temperature, trend) in a stable
-// order. Returns the page count and, if 0 <= target < count, fills text/isName
-// with that page.
+// Returns the page count and, if 0 <= target < count, fills text/isName with
+// that page.
 int collectPages(int target, String &text, bool &isName) {
-  int n = 0;
-  auto add = [&](const String &t, bool name) {
-    if (n == target) {
-      text = t;
-      isName = name;
-    }
-    n++;
-  };
-  for (const Sensor &s : sensors) {
-    if (!s.used)
-      continue;
-    String flag = isStale(s) ? "!" : "";
-    if (cfg.showName) {
-      String name = s.name;
-      name.toUpperCase();
-      add(name, true);
-    }
-    bool plato = cfg.gravUnit == "P";
-    if (cfg.showSg && !isnan(s.sg))
-      add(flag + (plato ? formatValue(sgToPlato(s.sg), 1, false) + "^P"
-                        : "SG " + formatValue(s.sg, 3, false)),
-          false);
-    if (cfg.showTemp && !isnan(s.temp))
-      add(flag + "T " + formatValue(convertTemp(s.temp), 1, false) +
-              tempSuffix(),
-          false);
-    if (cfg.showTrend && !isnan(s.trend)) {
-      // The Plato trend is the Plato difference over 24 h, so it needs the
-      // current SG.
-      if (!plato)
-        add(flag + formatValue(s.trend, 4, true) + "/d", false);
-      else if (!isnan(s.sg))
-        add(flag +
-                formatValue(sgToPlato(s.sg) - sgToPlato(s.sg - s.trend), 1,
-                            true) +
-                "^P/d",
-            false);
-    }
-  }
+  char buf[64];
+  int n = collectPages(sensors, MAX_SENSORS, pageOptions(), millis(), target,
+                       buf, sizeof(buf), isName);
+  if (target >= 0 && target < n)
+    text = buf;
   return n;
 }
 
@@ -289,91 +215,10 @@ void subscribeTopics() {
 
 void unsubscribeTopics() { mqtt.unsubscribe(sensorFilter().c_str()); }
 
-// Reads a number from a JSON field, accepting a number or a numeric string.
-// "unknown"/"unavailable" and missing fields leave the stored value untouched.
-bool readNumber(JsonObjectConst o, const char *lower, const char *upper,
-                float &out) {
-  JsonVariantConst v = o[lower];
-  if (v.isNull())
-    v = o[upper];
-  if (v.is<float>()) {
-    out = v.as<float>();
-    return !isnan(out);
-  }
-  if (v.is<const char *>()) {
-    char *end = nullptr;
-    const char *str = v.as<const char *>();
-    float f = strtof(str, &end);
-    if (end != str && !isnan(f)) {
-      out = f;
-      return true;
-    }
-  }
-  return false;
-}
-
-Sensor *findOrCreateSensor(const char *name) {
-  Sensor *free = nullptr, *oldest = nullptr;
-  for (Sensor &s : sensors) {
-    if (!s.used) {
-      if (!free)
-        free = &s;
-      continue;
-    }
-    if (strcasecmp(s.name, name) == 0)
-      return &s;
-    if (!oldest || s.lastUpdate < oldest->lastUpdate)
-      oldest = &s;
-  }
-  Sensor *s =
-      free ? free : oldest; // table full: evict the least recently updated
-  *s = Sensor();
-  strlcpy(s->name, name, NAME_LEN);
-  s->used = true;
-  return s;
-}
-
-// An empty payload on <topicBase>/<key> removes the sensor from the rotation.
-void removeSensorByKey(const String &key) {
-  for (Sensor &s : sensors) {
-    if (s.used && (strcasecmp(s.key, key.c_str()) == 0 ||
-                   strcasecmp(s.name, key.c_str()) == 0)) {
-      s = Sensor();
-      displayDirty = true;
-    }
-  }
-}
-
 void handleSensorMessage(const String &topic, const String &body) {
-  String key = topic.substring(topic.lastIndexOf('/') + 1);
-  if (body.length() == 0) {
-    removeSensorByKey(key);
-    return;
-  }
-  JsonDocument doc;
-  if (deserializeJson(doc, body) || !doc.is<JsonObject>())
-    return;
-  JsonObjectConst o = doc.as<JsonObjectConst>();
-  const char *name = o["sensor"] | (o["name"] | "");
-  if (!name || !*name)
-    return;
-
-  float sg, temp, trend;
-  bool hasSg = readNumber(o, "sg", "SG", sg);
-  bool hasTemp = readNumber(o, "temperature", "temp", temp);
-  bool hasTrend = readNumber(o, "trend", "Trend", trend);
-  if (!hasSg && !hasTemp && !hasTrend)
-    return;
-
-  Sensor *s = findOrCreateSensor(name);
-  strlcpy(s->key, key.c_str(), NAME_LEN);
-  if (hasSg)
-    s->sg = roundf(sg * 1000.0f) / 1000.0f;
-  if (hasTemp)
-    s->temp = roundf(temp * 10.0f) / 10.0f;
-  if (hasTrend)
-    s->trend = roundf(trend * 10000.0f) / 10000.0f;
-  s->lastUpdate = millis();
+  if (applySensorMessage(sensors, MAX_SENSORS, topic.c_str(), body.c_str(),
+                         millis()) == MSG_REMOVED)
+    displayDirty = true;
 }
 
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
@@ -439,66 +284,11 @@ void startAccessPoint(bool apOnly = false) {
                 WiFi.softAPIP().toString().c_str());
 }
 
-// Firmware upload (OTA). Never available until a Web password is set, so the
-// open setup access point cannot be used to flash the device.
-bool updateAuthorized = false;
-String updateError;
-
-void handleUpdateUpload() {
-  HTTPUpload &upload = server.upload();
-  if (upload.status == UPLOAD_FILE_START) {
-    updateError = "";
-    updateAuthorized = !cfg.webPassword.isEmpty() &&
-                       server.authenticate("admin", cfg.webPassword.c_str());
-    if (!updateAuthorized)
-      return;
-    Serial.printf("[OTA] receiving %s\n", upload.filename.c_str());
-    uint32_t maxSize = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-    if (!Update.begin(maxSize))
-      updateError = Update.getErrorString();
-  } else if (!updateAuthorized) {
-    return;
-  } else if (upload.status == UPLOAD_FILE_WRITE && updateError.isEmpty()) {
-    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-      updateError = Update.getErrorString();
-  } else if (upload.status == UPLOAD_FILE_END && updateError.isEmpty()) {
-    if (!Update.end(true))
-      updateError = Update.getErrorString();
-  } else if (upload.status == UPLOAD_FILE_ABORTED) {
-    Update.end();
-  }
-}
-
-void handleUpdateDone() {
-  if (cfg.webPassword.isEmpty()) {
-    server.send(403, "application/json",
-                "{\"ok\":false,\"error\":\"Set a Web password first\"}");
-    return;
-  }
-  if (!updateAuthorized) {
-    server.requestAuthentication(DIGEST_AUTH, "FermWatch");
-    return;
-  }
-  updateAuthorized = false;
-  if (!updateError.isEmpty()) {
-    Serial.printf("[OTA] failed: %s\n", updateError.c_str());
-    JsonDocument doc;
-    doc["ok"] = false;
-    doc["error"] = updateError;
-    sendJson(500, doc);
-    return;
-  }
-  Serial.println("[OTA] done, restarting");
-  server.send(200, "application/json", "{\"ok\":true}");
-  restartAt = millis() + 1000;
-}
-
 void setupWiFi() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.hostname(cfg.deviceName);
   if (cfg.webPassword.isEmpty()) {
-  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
     startAccessPoint(true);
     return;
   }
@@ -649,11 +439,66 @@ void handleState() {
   sendJson(200, doc);
 }
 
+// Firmware upload (OTA). Never available until a Web password is set, so the
+// open setup access point cannot be used to flash the device.
+bool updateAuthorized = false;
+String updateError;
+
+void handleUpdateUpload() {
+  HTTPUpload &upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    updateError = "";
+    updateAuthorized = !cfg.webPassword.isEmpty() &&
+                       server.authenticate("admin", cfg.webPassword.c_str());
+    if (!updateAuthorized)
+      return;
+    Serial.printf("[OTA] receiving %s\n", upload.filename.c_str());
+    uint32_t maxSize = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+    if (!Update.begin(maxSize))
+      updateError = Update.getErrorString();
+  } else if (!updateAuthorized) {
+    return;
+  } else if (upload.status == UPLOAD_FILE_WRITE && updateError.isEmpty()) {
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+      updateError = Update.getErrorString();
+  } else if (upload.status == UPLOAD_FILE_END && updateError.isEmpty()) {
+    if (!Update.end(true))
+      updateError = Update.getErrorString();
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    Update.end();
+  }
+}
+
+void handleUpdateDone() {
+  if (cfg.webPassword.isEmpty()) {
+    server.send(403, "application/json",
+                "{\"ok\":false,\"error\":\"Set a Web password first\"}");
+    return;
+  }
+  if (!updateAuthorized) {
+    server.requestAuthentication(DIGEST_AUTH, "FermWatch");
+    return;
+  }
+  updateAuthorized = false;
+  if (!updateError.isEmpty()) {
+    Serial.printf("[OTA] failed: %s\n", updateError.c_str());
+    JsonDocument doc;
+    doc["ok"] = false;
+    doc["error"] = updateError;
+    sendJson(500, doc);
+    return;
+  }
+  Serial.println("[OTA] done, restarting");
+  server.send(200, "application/json", "{\"ok\":true}");
+  restartAt = millis() + 1000;
+}
+
 void setupWebServer() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/config", HTTP_GET, handleGetConfig);
   server.on("/api/config", HTTP_POST, handlePostConfig);
   server.on("/api/state", HTTP_GET, handleState);
+  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
 }

@@ -37,11 +37,12 @@ Requires [PlatformIO](https://platformio.org/).
 make build      # compile
 make upload     # flash over USB (close the serial monitor first)
 make monitor    # serial monitor, 115200 baud
+make test       # unit tests of the display/MQTT logic, run on the computer
 ```
 
-If the upload fails with a connection error, retry once. If the serial port is busy, stop any running monitor.
+If the upload fails with a connection error, retry once. If the serial port is busy, stop any running monitor. Once a Web password is set, later updates can be done over Wi-Fi (see **Web interface**).
 
-GitHub Actions builds the firmware on every push and pull request.
+GitHub Actions checks formatting, runs the unit tests and builds the firmware on every push and pull request.
 
 ## First setup
 
@@ -61,6 +62,7 @@ If the Wi-Fi is unavailable for more than 20 s, the access point comes back so t
 - **Page duration**, **scroll speed** (used if a text is wider than the display) and **brightness**.
 - **Display preview**: cycles through the live pages of all sensors, or sample values when none was received.
 - **Advanced settings**: sensor topic base, stale/removal timeouts, MQTT broker, Wi-Fi, device name.
+- **Firmware update**: upload a `firmware.bin` (from `make build` or a GitHub release) to flash over Wi-Fi. The device restarts when done. Configuration is kept.
 - The Web interface uses HTTP Digest authentication (`admin` plus the Web password). Passwords are never returned by the API or published over MQTT.
 - Password fields left empty keep the stored value.
 - The device serves plain HTTP, not HTTPS. Use it only on a trusted local network and do not expose it directly to the Internet; HTTP traffic, including configuration values, is not encrypted.
@@ -160,14 +162,14 @@ pub -t fermwatch/fermwatch/config/set -m '{"brightness":8,"scrollMs":50}'
 | GET | `/api/config` | configuration (without passwords) |
 | POST | `/api/config` | partial JSON, same keys as above; accepts `webPassword` (8-64 characters) to set/change the Web password; returns `{"ok":true,"restart":false}` |
 | GET | `/api/state` | all sensors with values and age, MQTT state, IP, RSSI, firmware version |
+| POST | `/update` | multipart upload (field `firmware`) of a `firmware.bin`; flashes it and restarts. Refused until a Web password is set |
 
 ```bash
-| POST | `/update` | multipart upload (field `firmware`) of a `firmware.bin`; flashes it and restarts. Refused until a Web password is set |
 curl http://fermwatch.local/api/state
 curl -X POST http://fermwatch.local/api/config -H 'Content-Type: application/json' -d '{"pageSeconds":8}'
+curl --digest -u admin:<password> -F firmware=@.pio/build/esp8266/firmware.bin http://fermwatch.local/update
 ```
 
-curl --digest -u admin:<password> -F firmware=@.pio/build/esp8266/firmware.bin http://fermwatch.local/update
 ## Home Assistant
 
 Home Assistant stays the source of truth: it already holds the data of your Tilt, RAPT Pill or any other sensor (as entities), and an automation pushes that data to the display over MQTT. The ESP8266 only displays what it receives, so nothing sensor-specific is needed in the firmware. Any Home Assistant entity can be sent, whatever integration provides it.

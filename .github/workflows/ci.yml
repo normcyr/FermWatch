@@ -26,5 +26,8 @@ jobs:
       - name: Check formatting
         run: make format
 
+      - name: Unit tests
+        run: make test
+
       - name: Build firmware
         run: make build

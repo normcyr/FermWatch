@@ -28,9 +28,11 @@ GND → GND, 5V → VCC
 ## Code Structure
 
 - `src/main.cpp`: Wi-Fi (STA + fallback AP `FermWatch-Setup`), MQTT, display pages, web server
+- `src/logic.h`: Arduino-free logic (sensor table, MQTT message parsing, units, page building); keep it free of Arduino types so it stays testable on the host
 - `src/config.h`: `Config` struct, JSON ↔ config, persistence in `/config.json` (LittleFS)
 - `src/web_ui.h`: HTML/JS/CSS page in PROGMEM (English, ASCII only)
-- `platformio.ini`: `esp8266` environment
+- `test/test_logic/`: Unity unit tests for `logic.h`, run with `make test`
+- `platformio.ini`: `esp8266` environment and `native` (tests)
 
 ## MQTT Topics
 
@@ -49,9 +51,9 @@ Partial messages merge into the sensor's stored values. `unknown`/`unavailable` 
 - `GET /api/config`: config (no passwords)
 - `POST /api/config`: partial JSON; empty password = unchanged; restart if Wi-Fi/name changes
 - `GET /api/state`: sensors with values/age, MQTT state, IP, RSSI
+- `POST /update`: OTA firmware upload (multipart field `firmware`), Digest auth like the other routes, refused while no Web password is set (own handler, since the framework updater uses Basic auth)
 
 ## Display Behavior
-- `POST /update`: OTA firmware upload (multipart field `firmware`), Digest auth like the other routes, refused while no Web password is set (own handler, since the framework updater uses Basic auth)
 
 - For each sensor in turn, one page per enabled field (missing values are skipped), starting with the sensor name (full-height standard font if it fits in 32 px; otherwise narrow font and scrolling): `TILT YELLOW`, `SG 1.012`, `T 20.4°C`, `-0.0042/d` (trend per day)
 - Text that fits 32 px is static for `pageSeconds`; otherwise it scrolls at `scrollMs` ms/pixel
@@ -67,6 +69,8 @@ Partial messages merge into the sensor's stored values. `unknown`/`unavailable` 
 make build       # pio run -e esp8266
 make upload
 make monitor     # 115200 baud
+make test        # pio test -e native (unit tests on the host)
+make format      # clang-format check, also run in CI
 ```
 
 ## Quick Test

@@ -1,4 +1,4 @@
-.PHONY: help build upload monitor clean erase-flash format format-fix
+.PHONY: help build upload monitor clean erase-flash format format-fix test
 
 help:
 	@echo "FermWatch"
@@ -6,6 +6,7 @@ help:
 	@echo "build         - Compile the firmware"
 	@echo "upload        - Upload to the ESP8266"
 	@echo "monitor       - Serial monitor (115200)"
+	@echo "test          - Run unit tests on the host"
 	@echo "format        - Check formatting (clang-format)"
 	@echo "format-fix    - Fix formatting"
 	@echo "clean         - Remove build files"
@@ -19,6 +20,9 @@ upload:
 
 monitor:
 	pio device monitor -b 115200
+
+test:
+	pio test -e native
 
 format:
 	clang-format --dry-run -Werror src/*.cpp src/*.h

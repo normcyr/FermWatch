@@ -35,6 +35,10 @@ details summary{cursor:pointer;color:var(--mut)}
 <h1>FermWatch</h1>
 <p class="sub">Display configuration - ESP8266 - <span id="conn" class="badge">Offline</span></p>
 
+<section id="pwWarn" style="display:none;border-color:var(--acc)"><h2>Set a Web password</h2>
+<div class="cap">The device is in setup mode and this page is open to anyone nearby. Open <b>Advanced settings</b> below, set a Web password (8-64 characters) together with your Wi-Fi and MQTT settings, then Save. The device restarts and joins your network.</div>
+<button class="sec" id="pwGo">Go to Advanced settings</button></section>
+
 <section><h2>Sensors</h2>
 <div id="sensors" class="cap">No sensor received yet.</div></section>
 
@@ -70,6 +74,7 @@ details summary{cursor:pointer;color:var(--mut)}
 <label>Web password (8-64 characters; empty = unchanged)</label><input type="password" id="webPassword" minlength="8" maxlength="64" autocomplete="new-password">
 <label>Wi-Fi network (SSID)</label><input type="text" id="ssid" autocomplete="off">
 <label>Wi-Fi password (empty = unchanged)</label><input type="password" id="password" autocomplete="new-password">
+<label class="chk"><input type="checkbox" id="showPw"> Show passwords</label>
 <label>Device name</label><input type="text" id="deviceName">
 </details></section>
 
@@ -155,6 +160,7 @@ async function poll(){
 async function load(){
   const r=await (await fetch('/api/config')).json();
   fill(r.config);
+  if(!r.webPasswordSet)$('pwWarn').style.display='';
   await poll();setInterval(poll,5000);
 }
 document.addEventListener('input',e=>{
@@ -167,8 +173,13 @@ $('save').onclick=async()=>{
     const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});
     const j=await r.json();
     $('msg').textContent=r.ok&&j.ok?(j.restart?'Saved. Restarting...':'Configuration saved.'):'Error: '+(j.error||r.status);
-    $('mqttPass').value='';$('password').value='';$('webPassword').value='';
+    $('mqttPass').value='';$('password').value='';$('webPassword').value='';$('showPw').checked=false;$('showPw').onchange({target:$('showPw')});
   }catch(e){$('msg').textContent='Communication error'}
+};
+$('showPw').onchange=e=>['mqttPass','webPassword','password'].forEach(k=>$(k).type=e.target.checked?'text':'password');
+$('pwGo').onclick=()=>{
+  const d=$('webPassword').closest('details');d.open=true;
+  d.scrollIntoView({behavior:'smooth'});$('webPassword').focus();
 };
 $('upd').onclick=async()=>{
   const f=$('fw').files[0];

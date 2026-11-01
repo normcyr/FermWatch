@@ -366,6 +366,7 @@ void handleGetConfig() {
     return;
   JsonDocument doc;
   configToJson(cfg, doc["config"].to<JsonObject>(), false);
+  doc["webPasswordSet"] = !cfg.webPassword.isEmpty();
   sendJson(200, doc);
 }
 

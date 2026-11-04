@@ -21,7 +21,7 @@
 #include "logic.h"
 #include "web_ui.h"
 
-#define FIRMWARE_VERSION "0.2.0"
+#define FIRMWARE_VERSION "0.2.1"
 
 #define AP_SSID "FermWatch-Setup"
 #define WIFI_CONNECT_TIMEOUT 20000UL

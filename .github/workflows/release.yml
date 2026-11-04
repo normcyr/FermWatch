@@ -13,6 +13,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0 # full history and tags, to list the changes since the previous release
 
             - name: Set up Python
               uses: actions/setup-python@v7
@@ -39,6 +41,25 @@ jobs:
                   echo "PATH=$FIRMWARE" >> $GITHUB_OUTPUT
                   echo "NAME=$(basename $FIRMWARE)" >> $GITHUB_OUTPUT
 
+            - name: Generate release notes
+              run: |
+                  PREV=$(git describe --tags --abbrev=0 --match 'v*' "${{ github.ref_name }}^" 2>/dev/null || true)
+                  RANGE=${PREV:+$PREV..}${{ github.ref_name }}
+                  CHANGES=$(git log --no-merges --pretty='- %s' "$RANGE" | grep -v '^- Bump version' || true)
+                  {
+                    echo "## FermWatch - Firmware ${{ steps.version.outputs.VERSION }}"
+                    echo
+                    echo "### Changes"
+                    echo "${CHANGES:-- Maintenance release}"
+                    if [ -n "$PREV" ]; then
+                      echo
+                      echo "Full changelog: https://github.com/${{ github.repository }}/compare/$PREV...${{ github.ref_name }}"
+                    fi
+                    echo
+                    cat .github/release-notes-footer.md
+                  } > release-notes.md
+                  sed -i "s/@FIRMWARE@/${{ steps.firmware.outputs.NAME }}/g; s#@REPO@#${{ github.repository }}#g" release-notes.md
+
             - name: Create GitHub Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,41 +67,5 @@ jobs:
               run: |
                   gh release create ${{ github.ref_name }} \
                     --title "Release ${{ steps.version.outputs.VERSION }}" \
-                    --notes "## FermWatch - Firmware ${{ steps.version.outputs.VERSION }}
-
-                  This release contains the compiled firmware binary for the ESP8266 Wemos D1 Mini MAX7219 LED matrix display.
-
-                  ### Features
-                  - Displays gravity (SG or °P), temperature (°C/°F/K/°R) and 24 h trend on a 32×8 LED matrix
-                  - Up to 16 sensors (Tilt, RAPT Pill, ...), one JSON message per sensor from Home Assistant via MQTT
-                  - Web-based configuration interface
-                  - Fallback WiFi access point when the network is unavailable
-                  - Persistent configuration (LittleFS)
-
-                  ### Flash Instructions
-
-                  **Prerequisites:**
-                  - esptool.py installed: \`pip install esptool\`
-                  - Device connected via USB
-
-                  **macOS/Linux:**
-                  \`\`\`bash
-                  esptool.py -p /dev/cu.usbserial-XXXX write_flash 0x0 ${{ steps.firmware.outputs.NAME }}
-                  \`\`\`
-
-                  **Windows:**
-                  \`\`\`bash
-                  esptool.py -p COM3 write_flash 0x0 ${{ steps.firmware.outputs.NAME }}
-                  \`\`\`
-
-                  Replace \`/dev/cu.usbserial-XXXX\` (macOS/Linux) or \`COM3\` (Windows) with your actual serial port.
-
-                  ### Post-Flash Setup
-                  1. Device will boot with WiFi AP named \`FermWatch-Setup\`
-                  2. Connect to the AP and navigate to \`http://192.168.4.1\`
-                  3. Open Advanced settings and enter WiFi credentials and MQTT broker details
-                  4. Save settings (device will reboot)
-
-                  ### Documentation
-                  For complete setup and configuration details, see the [README](https://github.com/${{ github.repository }}/blob/main/README.md)" \
+                    --notes-file release-notes.md \
                     "${{ steps.firmware.outputs.PATH }}"

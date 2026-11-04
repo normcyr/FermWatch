@@ -186,9 +186,13 @@ void updateDisplay() {
   if (displayDirty) {
     displayDirty = false;
     display.setIntensity(cfg.brightness);
+    display.displayShutdown(!cfg.displayOn);
     pageIndex = 0;
-    nextPage();
+    if (cfg.displayOn)
+      nextPage();
   }
+  if (!cfg.displayOn)
+    return;
   if (display.displayAnimate())
     nextPage();
 }
@@ -523,7 +527,10 @@ void setup() {
   display.setFont(narrowFont);
   display.setIntensity(cfg.brightness);
   display.displayClear();
-  startSplash();
+  if (cfg.displayOn)
+    startSplash();
+  else
+    display.displayShutdown(true);
 
   mqtt.setCallback(mqttCallback);
   mqtt.setBufferSize(1024);

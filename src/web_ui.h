@@ -53,6 +53,9 @@ details summary{cursor:pointer;color:var(--mut)}
 <label>Gravity</label><select id="gravUnit"><option value="SG">SG - Specific gravity</option><option value="P">&deg;P - Plato</option></select>
 <div class="cap">Incoming MQTT data is always in &deg;C and SG.</div></section>
 
+<section><label class="chk"><input type="checkbox" id="displayOn"> Display on</label>
+<div class="cap">Off turns the LED matrix off completely. Data keeps being received.</div></section>
+
 <section><h2>Page duration: <span class="val" id="pageV"></span></h2>
 <input type="range" id="pageSeconds" min="1" max="30"><div class="ends"><span>2 s</span><span>15 s</span><span>30 s</span></div>
 <h2 style="margin-top:14px">Scroll speed: <span class="val" id="scrollV"></span></h2>
@@ -92,7 +95,7 @@ details summary{cursor:pointer;color:var(--mut)}
 <script>
 const $=id=>document.getElementById(id);
 let live={},pageIdx=0,timer=null;
-const F=['showName','showSg','showTemp','showTrend'];
+const F=['displayOn','showName','showSg','showTemp','showTrend'];
 const N=['pageSeconds','scrollMs','brightness','staleMinutes','expireMinutes','mqttPort'];
 const T=['tempUnit','gravUnit','topicBase','mqttHost','mqttUser','ssid','deviceName'];
 const SAMPLE=[{name:'Tilt Yellow',sg:1.012,temp:20.4,trend:-0.004}];

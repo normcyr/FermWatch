@@ -59,6 +59,7 @@ If the Wi-Fi is unavailable for more than 20 s, the access point comes back so t
 - **Sensors**: the list of sensors seen so far, with their last values and age. There is nothing to select: sensors identify themselves in their MQTT message.
 - **Information to display**: sensor name, SG, temperature, 24 h trend (applies to all sensors).
 - **Units**: temperature in °C, °F, K or °R; gravity in SG or °P (Plato). This only affects the display and the preview: MQTT data is always °C and SG.
+- **Display on**: switch the LED matrix on or off (saved, so it stays off after a restart).
 - **Page duration**, **scroll speed** (used if a text is wider than the display) and **brightness**.
 - **Display preview**: cycles through the live pages of all sensors, or sample values when none was received.
 - **Advanced settings**: sensor topic base, stale/removal timeouts, MQTT broker, Wi-Fi, device name.
@@ -140,6 +141,7 @@ pub -t fermwatch/fermwatch/config/set -m '{"brightness":8,"scrollMs":50}'
 | Key | Type | Range / values | Default |
 | ----- | ------ | ---------------- | --------- |
 | `topicBase` | string | the device subscribes to `<topicBase>/+` | `fermwatch` |
+| `displayOn` | bool | `true` / `false` (matrix shut down, data still received) | `true` |
 | `showName` | bool | `true` / `false` | `true` |
 | `showSg`, `showTemp`, `showTrend` | bool | `true` / `false` | `true` |
 | `tempUnit` | string | `C`, `F`, `K`, `R` | `C` |

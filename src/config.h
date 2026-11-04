@@ -24,6 +24,7 @@ struct Config {
   bool showSg = true;
   bool showTemp = true;
   bool showTrend = true;
+  bool displayOn = true;
 
   uint16_t pageSeconds = 5;
   uint16_t scrollMs = 35;
@@ -78,6 +79,7 @@ static bool applyConfig(Config &c, JsonObjectConst o) {
   copyBool(o, "showSg", c.showSg);
   copyBool(o, "showTemp", c.showTemp);
   copyBool(o, "showTrend", c.showTrend);
+  copyBool(o, "displayOn", c.displayOn);
 
   copyClamped(o, "pageSeconds", c.pageSeconds, 1, 60);
   copyClamped(o, "scrollMs", c.scrollMs, 10, 100);
@@ -115,6 +117,7 @@ static void configToJson(const Config &c, JsonObject o, bool includeSecrets) {
   o["showSg"] = c.showSg;
   o["showTemp"] = c.showTemp;
   o["showTrend"] = c.showTrend;
+  o["displayOn"] = c.displayOn;
   o["pageSeconds"] = c.pageSeconds;
   o["scrollMs"] = c.scrollMs;
   o["tempUnit"] = c.tempUnit;
